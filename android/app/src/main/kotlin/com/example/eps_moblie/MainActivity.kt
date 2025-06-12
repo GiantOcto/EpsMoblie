@@ -34,6 +34,10 @@ class MainActivity : FlutterActivity() {
                     val errors = getErrorsFromDatabase()
                     result.success(errors)
                 }
+                "getAllErrorsForStats" -> {  // 🔥 통계용 모든 에러 조회
+                    val errors = getAllErrorsFromDatabase()
+                    result.success(errors)
+                }
                 "getErrorStatistics" -> {
                     val statistics = getErrorStatistics()
                     result.success(statistics)
@@ -82,7 +86,8 @@ class MainActivity : FlutterActivity() {
                     "errorCode" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_ERROR_CODE)),
                     "title" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TITLE)),
                     "timestamp" to it.getLong(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TIMESTAMP)),
-                    "severity" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SEVERITY))
+                    "severity" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SEVERITY)),
+                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE))
                 )
                 errors.add(error)
             }
@@ -152,20 +157,64 @@ class MainActivity : FlutterActivity() {
         println("📊 통계 조회: 총 ${totalCount}개, 24시간 ${recentCount}개, 유형 ${typeStats.size}개")
         return statistics
     }
+
+    // 🔥 통계용: 모든 에러 조회 (제한 없음, 필터 없음)
+    private fun getAllErrorsFromDatabase(): List<Map<String, Any>> {
+        val dbHelper = ErrorDatabaseHelper(this)
+        val db = dbHelper.readableDatabase
+        val errors = mutableListOf<Map<String, Any>>()
+        
+        // 🔥 DB 상태 확인
+        val countCursor = db.rawQuery("SELECT COUNT(*) FROM ${ErrorDatabaseHelper.TABLE_NAME}", null)
+        val totalCount = if (countCursor.moveToFirst()) countCursor.getInt(0) else 0
+        countCursor.close()
+        println("🔍 DB 전체 레코드 수: $totalCount")
+        
+        // 🔥 모든 조건 제거 - 전체 데이터 가져오기
+        val cursor = db.query(
+            ErrorDatabaseHelper.TABLE_NAME,
+            null,
+            null,  // 🔥 WHERE 조건 없음 - 모든 데이터
+            null,
+            null,
+            null,
+            "${ErrorDatabaseHelper.COLUMN_TIMESTAMP} DESC"
+            // 🔥 LIMIT 없음 - 모든 에러 가져오기
+        )
+        
+        cursor.use {
+            while (it.moveToNext()) {
+                val error = mapOf(
+                    "id" to it.getInt(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_ID)),
+                    "errorCode" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_ERROR_CODE)),
+                    "title" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TITLE)),
+                    "timestamp" to it.getLong(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TIMESTAMP)),
+                    "severity" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SEVERITY)),
+                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE))
+                )
+                errors.add(error)
+            }
+        }
+        
+        db.close()
+        println("📊 통계용 전체 에러 ${errors.size}개 조회됨 (모든 데이터 포함)")
+        return errors
+    }
 }
 
 // 🔥 에러 데이터베이스 헬퍼
 class ErrorDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
     companion object {
         const val DATABASE_NAME = "server_errors.db"
-        const val DATABASE_VERSION = 2  // 버전 업그레이드
+        const val DATABASE_VERSION = 4  // 🔥 버전 업그레이드 (본사→서울본사 통합)
         const val TABLE_NAME = "errors"
         const val COLUMN_ID = "id"
         const val COLUMN_ERROR_CODE = "error_code"
         const val COLUMN_TITLE = "title"
         const val COLUMN_TIMESTAMP = "timestamp"
         const val COLUMN_SEVERITY = "severity"
-        const val COLUMN_IS_HIDDEN = "is_hidden"  // 숨김 상태 컬럼 추가
+        const val COLUMN_IS_HIDDEN = "is_hidden"
+        const val COLUMN_SITE = "site"  // 🔥 현장명 컬럼 추가
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -176,7 +225,8 @@ class ErrorDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
                 $COLUMN_TITLE TEXT NOT NULL,
                 $COLUMN_TIMESTAMP INTEGER NOT NULL,
                 $COLUMN_SEVERITY TEXT NOT NULL,
-                $COLUMN_IS_HIDDEN INTEGER DEFAULT 0
+                $COLUMN_IS_HIDDEN INTEGER DEFAULT 0,
+                $COLUMN_SITE TEXT NOT NULL DEFAULT '서울본사'
             )
         """.trimIndent()
         db.execSQL(createTable)
@@ -187,16 +237,26 @@ class ErrorDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
             // 기존 테이블에 is_hidden 컬럼 추가
             db.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN $COLUMN_IS_HIDDEN INTEGER DEFAULT 0")
         }
+        if (oldVersion < 3) {
+            // 🔥 현장명 컬럼 추가
+            db.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN $COLUMN_SITE TEXT NOT NULL DEFAULT '서울본사'")
+        }
+        if (oldVersion < 4) {
+            // 🔥 기존 "본사" 데이터를 "서울본사"로 업데이트
+            db.execSQL("UPDATE $TABLE_NAME SET $COLUMN_SITE = '서울본사' WHERE $COLUMN_SITE = '본사'")
+            println("🔄 데이터베이스 마이그레이션: '본사' → '서울본사' 통합 완료")
+        }
     }
 
-    fun insertError(errorCode: String, title: String, timestamp: Long, severity: String) {
+    fun insertError(errorCode: String, title: String, timestamp: Long, severity: String, site: String = "서울본사") {
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_ERROR_CODE, errorCode)
             put(COLUMN_TITLE, title)
             put(COLUMN_TIMESTAMP, timestamp)
             put(COLUMN_SEVERITY, severity)
-            put(COLUMN_IS_HIDDEN, 0)  // 기본값: 숨기지 않음
+            put(COLUMN_IS_HIDDEN, 0)
+            put(COLUMN_SITE, site)  // 🔥 현장명 저장
         }
         db.insert(TABLE_NAME, null, values)
         
@@ -205,7 +265,7 @@ class ErrorDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
         db.execSQL(deleteOld)
         
         db.close()
-        println("💾 에러 DB 저장: $errorCode - $title")
+        println("💾 에러 DB 저장: $errorCode - $title [$site]")
     }
 
     fun hideError(errorId: Int) {
@@ -237,6 +297,18 @@ class BackgroundMonitoringService : Service() {
         "Redis 캐시 오류",
         "Load Balancer 응답 없음",
         "Background Job 실패"
+    )
+
+    // 🔥 현장명 배열 추가
+    private val siteNames = arrayOf(
+        "서울본사",
+        "부산지점",
+        "대구지점", 
+        "인천지점",
+        "광주지점",
+        "대전지점",
+        "울산지점",
+        "제주지점"
     )
 
     override fun onCreate() {
@@ -297,14 +369,15 @@ class BackgroundMonitoringService : Service() {
 
     private fun generateErrorNotification() {
         val errorMessage = errorMessages[Random.nextInt(errorMessages.size)]
+        val siteName = siteNames[Random.nextInt(siteNames.size)]  // 🔥 랜덤 현장명
         val errorCode = "ERR_${Random.nextInt(999).toString().padStart(3, '0')}"
         val timestamp = System.currentTimeMillis()
         
-        // 🔥 데이터베이스에 저장 (앱과 공유할 데이터)
-        dbHelper.insertError(errorCode, errorMessage, timestamp, "Error")
+        // 🔥 데이터베이스에 저장 (현장명 포함)
+        dbHelper.insertError(errorCode, errorMessage, timestamp, "Error", siteName)
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("🚨 서버 에러 발생: $errorCode")
+            .setContentTitle("🚨 [$siteName] 서버 에러: $errorCode")  // 🔥 현장명 포함
             .setContentText(errorMessage)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -315,7 +388,7 @@ class BackgroundMonitoringService : Service() {
         val notificationManager = NotificationManagerCompat.from(this)
         try {
             notificationManager.notify(System.currentTimeMillis().toInt(), notification)
-            println("🚨 백그라운드 에러 알림 생성: $errorCode - $errorMessage")
+            println("🚨 백그라운드 에러 알림 생성: $errorCode - $errorMessage [$siteName]")
         } catch (e: SecurityException) {
             println("❌ 알림 권한 없음: ${e.message}")
         }
