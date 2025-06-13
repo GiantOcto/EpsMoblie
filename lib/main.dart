@@ -397,6 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // 🔥 필터 상태
   String _selectedSite = '전체';
   DateTime? _selectedDate;
+  String? _selectedType; // 🔥 유형 필터 추가
   
   final List<String> _sites = ['전체', '서울본사', '부산지점', '대구지점', '인천지점', '광주지점', '대전지점', '울산지점', '제주지점'];
 
@@ -973,6 +974,7 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
   // 🔥 필터 상태
   String _selectedSite = '전체';
   DateTime? _selectedDate;
+  String? _selectedType; // 🔥 유형 필터 추가
   
   final List<String> _sites = ['전체', '서울본사', '부산지점', '대구지점', '인천지점', '광주지점', '대전지점', '울산지점', '제주지점'];
 
@@ -1022,14 +1024,14 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
     return _allErrors.where((error) {
       // 현장 필터
       if (_selectedSite != '전체' && error.site != _selectedSite) return false;
-      
       // 날짜 필터
       if (_selectedDate != null) {
         final errorDate = DateTime(error.timestamp.year, error.timestamp.month, error.timestamp.day);
         final selectedDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day);
         if (!errorDate.isAtSameMomentAs(selectedDate)) return false;
       }
-      
+      // 🔥 유형 필터
+      if (_selectedType != null && _selectedType!.isNotEmpty && error.title != _selectedType) return false;
       return true;
     }).toList();
   }
@@ -1079,66 +1081,28 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-            
-            // 현장 선택
-            Row(
-              children: [
-                const Icon(Icons.location_on, color: Colors.blue),
-                const SizedBox(width: 8),
-                const Text('현장: '),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedSite,
-                    isExpanded: true,
-                    alignment: Alignment.center,  // 🔥 중앙정렬
-                    items: _sites.map((site) => DropdownMenuItem(
-                      value: site,
-                      alignment: Alignment.center,  // 🔥 드롭다운 아이템도 중앙정렬
-                      child: Text(site),
-                    )).toList(),
-                    onChanged: (value) => setState(() => _selectedSite = value!),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // 날짜 선택
-            Row(
-              children: [
-                const Icon(Icons.calendar_today, color: Colors.green),
-                const SizedBox(width: 8),
-                const Text('날짜: '),
-                Expanded(
-                  child: TextButton(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate ?? DateTime.now(),
-                        firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                        lastDate: DateTime.now(),
-                      );
-                      if (date != null) {
-                        setState(() => _selectedDate = date);
-                      }
-                    },
-                    child: Text(
-                      _selectedDate != null 
-                          ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
-                          : '전체 기간',
-                      textAlign: TextAlign.center,  // 🔥 중앙정렬
+            // 🔥 '전체 보기' 버튼 (필터 적용 시만 노출)
+            if (_selectedSite != '전체' || _selectedDate != null || (_selectedType != null && _selectedType!.isNotEmpty))
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => setState(() {
+                    _selectedSite = '전체';
+                    _selectedDate = null;
+                    _selectedType = null;
+                  }),
+                  icon: const Icon(Icons.list),
+                  label: const Text('전체 보기'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
-                if (_selectedDate != null)
-                  IconButton(
-                    onPressed: () => setState(() => _selectedDate = null),
-                    icon: const Icon(Icons.clear),
-                  ),
-              ],
-            ),
-            
+              ),
             // 필터 결과 요약
             Text(
               '필터 결과: ${_filteredErrors.length}개 / 전체 ${_allErrors.length}개',
@@ -1158,14 +1122,11 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
     for (final error in _filteredErrors) {
       siteStats[error.site] = (siteStats[error.site] ?? 0) + 1;
     }
-    
     final sortedSites = siteStats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-
     if (sortedSites.isEmpty) {
       return _buildEmptyState('현장별 데이터가 없습니다');
     }
-
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1189,136 +1150,142 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
           final percentage = _filteredErrors.isNotEmpty ? (entry.value / _filteredErrors.length * 100) : 0;
           final maxValue = sortedSites.isNotEmpty ? sortedSites.first.value : 1;
           final normalizedValue = entry.value / maxValue;
-          
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2A2A2A) 
-                      : Colors.white,
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF1F1F1F) 
-                      : const Color(0xFFFAFAFA),
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedSite = entry.key;
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF2A2A2A) 
+                        : Colors.white,
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF1F1F1F) 
+                        : const Color(0xFFFAFAFA),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.location_on, color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.key,
-                              style: AppTextStyles.heading3.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white 
-                                    : const Color(0xFF1A1A1A),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
-                              style: AppTextStyles.body2.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.grey[400] 
-                                    : Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${entry.value}',
-                          style: AppTextStyles.body2.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[800] 
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Stack(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
                         Container(
-                          width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
-                          height: 8,
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [AppColors.primary, AppColors.secondary],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                              colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.primary.withOpacity(0.3),
-                                blurRadius: 4,
+                                blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
+                          child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.key,
+                                style: AppTextStyles.heading3.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white 
+                                      : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
+                                style: AppTextStyles.body2.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.grey[400] 
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${entry.value}',
+                            style: AppTextStyles.body2.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.grey[800] 
+                            : Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [AppColors.primary, AppColors.secondary],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1332,23 +1299,19 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
     for (final error in _filteredErrors) {
       typeStats[error.title] = (typeStats[error.title] ?? 0) + 1;
     }
-    
     final sortedTypes = typeStats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-
     if (sortedTypes.isEmpty) {
       return _buildEmptyState('유형별 데이터가 없습니다');
     }
-
     final errorTypeColors = [
       [AppColors.error, AppColors.error.withOpacity(0.7)],
-      [AppColors.warning, Colors.orange.withOpacity(0.7)],
+      [AppColors.warning, Colors.orange[300]!],
       [AppColors.info, AppColors.info.withOpacity(0.7)],
       [AppColors.success, AppColors.success.withOpacity(0.7)],
       [Colors.purple, Colors.purple.withOpacity(0.7)],
       [Colors.teal, Colors.teal.withOpacity(0.7)],
     ];
-
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1373,137 +1336,143 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
           final maxValue = sortedTypes.isNotEmpty ? sortedTypes.first.value : 1;
           final normalizedValue = entry.value / maxValue;
           final colorPair = errorTypeColors[index % errorTypeColors.length];
-          
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2A2A2A) 
-                      : Colors.white,
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF1F1F1F) 
-                      : const Color(0xFFFAFAFA),
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedType = entry.key;
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF2A2A2A) 
+                        : Colors.white,
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF1F1F1F) 
+                        : const Color(0xFFFAFAFA),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorPair[0].withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: colorPair[0].withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: colorPair,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorPair[0].withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.error_outline, color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.key,
-                              style: AppTextStyles.body1.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white 
-                                    : const Color(0xFF1A1A1A),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
-                              style: AppTextStyles.body2.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.grey[400] 
-                                    : Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: colorPair,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${entry.value}',
-                          style: AppTextStyles.body2.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[800] 
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Stack(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
                         Container(
-                          width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
-                          height: 8,
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: colorPair,
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
                                 color: colorPair[0].withOpacity(0.3),
-                                blurRadius: 4,
+                                blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
+                          child: const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.key,
+                                style: AppTextStyles.body1.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white 
+                                      : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
+                                style: AppTextStyles.body2.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.grey[400] 
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: colorPair,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${entry.value}',
+                            style: AppTextStyles.body2.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.grey[800] 
+                            : Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: colorPair,
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorPair[0].withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1518,14 +1487,11 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
       final dateKey = '${error.timestamp.year}-${error.timestamp.month.toString().padLeft(2, '0')}-${error.timestamp.day.toString().padLeft(2, '0')}';
       dateStats[dateKey] = (dateStats[dateKey] ?? 0) + 1;
     }
-    
     final sortedDates = dateStats.entries.toList()
       ..sort((a, b) => b.key.compareTo(a.key)); // 최신 날짜부터
-
     if (sortedDates.isEmpty) {
       return _buildEmptyState('일별 데이터가 없습니다');
     }
-
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1549,141 +1515,146 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
           final percentage = _filteredErrors.isNotEmpty ? (entry.value / _filteredErrors.length * 100) : 0;
           final maxValue = sortedDates.isNotEmpty ? sortedDates.first.value : 1;
           final normalizedValue = entry.value / maxValue;
-          
           // 날짜별로 다른 색상 그라데이션
           final hue = (index * 60) % 360;
           final color = HSVColor.fromAHSV(1.0, hue.toDouble(), 0.7, 0.8).toColor();
           final colorPair = [color, color.withOpacity(0.7)];
-          
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2A2A2A) 
-                      : Colors.white,
-                  Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF1F1F1F) 
-                      : const Color(0xFFFAFAFA),
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedDate = DateTime.parse(entry.key);
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF2A2A2A) 
+                        : Colors.white,
+                    Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF1F1F1F) 
+                        : const Color(0xFFFAFAFA),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: colorPair,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.calendar_today, color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.key,
-                              style: AppTextStyles.heading3.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white 
-                                    : const Color(0xFF1A1A1A),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
-                              style: AppTextStyles.body2.copyWith(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.grey[400] 
-                                    : Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: colorPair,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${entry.value}',
-                          style: AppTextStyles.body2.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[800] 
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Stack(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
                         Container(
-                          width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
-                          height: 8,
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: colorPair,
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
                                 color: color.withOpacity(0.3),
-                                blurRadius: 4,
+                                blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
+                          child: const Icon(Icons.calendar_today, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.key,
+                                style: AppTextStyles.heading3.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white 
+                                      : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
+                                style: AppTextStyles.body2.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.grey[400] 
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: colorPair,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${entry.value}',
+                            style: AppTextStyles.body2.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.grey[800] 
+                            : Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: colorPair,
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: color.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
