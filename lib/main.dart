@@ -8,6 +8,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';  // 🔥 설정 저장용 추가
+import 'package:fl_chart/fl_chart.dart';
 
 // 🔥 백그라운드 서비스 채널
 const platform = MethodChannel('background_service');
@@ -441,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           id: errorMap['id'] as int,
           title: errorMap['title'] as String,
           errorCode: errorMap['errorCode'] as String,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int),
+          timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int, isUtc: true).toLocal(),
           severity: errorMap['severity'] as String,
           site: errorMap['site'] as String,  // 🔥 현장명 추가
         );
@@ -1003,7 +1004,7 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
             id: errorMap['id'] as int,
             title: errorMap['title'] as String,
             errorCode: errorMap['errorCode'] as String,
-            timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int),
+            timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int, isUtc: true).toLocal(),
             severity: errorMap['severity'] as String,
             site: errorMap['site'] as String,
           );
@@ -1127,170 +1128,154 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
     if (sortedSites.isEmpty) {
       return _buildEmptyState('현장별 데이터가 없습니다');
     }
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Theme.of(context).brightness == Brightness.dark 
-                ? const Color(0xFF1A1A1A)
-                : const Color(0xFFF8F9FA),
-            Theme.of(context).brightness == Brightness.dark 
-                ? const Color(0xFF0D1117)
-                : Colors.white,
-          ],
-        ),
-      ),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: sortedSites.length,
-        itemBuilder: (context, index) {
-          final entry = sortedSites[index];
-          final percentage = _filteredErrors.isNotEmpty ? (entry.value / _filteredErrors.length * 100) : 0;
-          final maxValue = sortedSites.isNotEmpty ? sortedSites.first.value : 1;
-          final normalizedValue = entry.value / maxValue;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedSite = entry.key;
-              });
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).brightness == Brightness.dark 
-                        ? const Color(0xFF2A2A2A) 
-                        : Colors.white,
-                    Theme.of(context).brightness == Brightness.dark 
-                        ? const Color(0xFF1F1F1F) 
-                        : const Color(0xFFFAFAFA),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: sortedSites.length,
+      itemBuilder: (context, index) {
+        final entry = sortedSites[index];
+        final percentage = _filteredErrors.isNotEmpty ? (entry.value / _filteredErrors.length * 100) : 0;
+        final maxValue = sortedSites.isNotEmpty ? sortedSites.first.value : 1;
+        final normalizedValue = entry.value / maxValue;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedSite = entry.key;
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF2A2A2A) 
+                      : Colors.white,
+                  Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF1F1F1F) 
+                      : const Color(0xFFFAFAFA),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.key,
+                              style: AppTextStyles.heading3.copyWith(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white 
+                                    : const Color(0xFF1A1A1A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
+                              style: AppTextStyles.body2.copyWith(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.grey[400] 
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${entry.value}',
+                          style: AppTextStyles.body2.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Colors.grey[800] 
+                          : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Stack(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
+                          height: 8,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                              colors: [AppColors.primary, AppColors.secondary],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.primary.withOpacity(0.3),
-                                blurRadius: 8,
+                                blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.location_on, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                entry.key,
-                                style: AppTextStyles.heading3.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark 
-                                      ? Colors.white 
-                                      : const Color(0xFF1A1A1A),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
-                                style: AppTextStyles.body2.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark 
-                                      ? Colors.grey[400] 
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${entry.value}',
-                            style: AppTextStyles.body2.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark 
-                            ? Colors.grey[800] 
-                            : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Stack(
-                        children: [
-                          Container(
-                            width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppColors.primary, AppColors.secondary],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.3),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1304,180 +1289,89 @@ class _StatisticsPageState extends State<StatisticsPage> with SingleTickerProvid
     if (sortedTypes.isEmpty) {
       return _buildEmptyState('유형별 데이터가 없습니다');
     }
-    final errorTypeColors = [
-      [AppColors.error, AppColors.error.withOpacity(0.7)],
-      [AppColors.warning, Colors.orange[300]!],
-      [AppColors.info, AppColors.info.withOpacity(0.7)],
-      [AppColors.success, AppColors.success.withOpacity(0.7)],
-      [Colors.purple, Colors.purple.withOpacity(0.7)],
-      [Colors.teal, Colors.teal.withOpacity(0.7)],
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Theme.of(context).brightness == Brightness.dark 
-                ? const Color(0xFF1A1A1A)
-                : const Color(0xFFF8F9FA),
-            Theme.of(context).brightness == Brightness.dark 
-                ? const Color(0xFF0D1117)
-                : Colors.white,
-          ],
+    // 겹치지 않는 색상 자동 생성 (HSV 색상환 등분)
+    final int sectionCount = sortedTypes.length;
+    final List<Color> pieColors = List.generate(
+      sectionCount,
+      (i) => HSVColor.fromAHSV(1.0, (i * 360 / sectionCount) % 360, 0.7, 0.9).toColor(),
+    );
+    final total = sortedTypes.fold<int>(0, (sum, e) => sum + e.value);
+    List<PieChartSectionData> pieSections = [];
+    for (int i = 0; i < sortedTypes.length; i++) {
+      final entry = sortedTypes[i];
+      final color = pieColors[i];
+      final percent = total > 0 ? (entry.value / total * 100) : 0;
+      pieSections.add(
+        PieChartSectionData(
+          color: color,
+          value: entry.value.toDouble(),
+          title: '', // 퍼센트 표시 제거
+          radius: 60,
+          titleStyle: AppTextStyles.body2.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: sortedTypes.length,
-        itemBuilder: (context, index) {
-          final entry = sortedTypes[index];
-          final percentage = _filteredErrors.isNotEmpty ? (entry.value / _filteredErrors.length * 100) : 0;
-          final maxValue = sortedTypes.isNotEmpty ? sortedTypes.first.value : 1;
-          final normalizedValue = entry.value / maxValue;
-          final colorPair = errorTypeColors[index % errorTypeColors.length];
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedType = entry.key;
-              });
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).brightness == Brightness.dark 
-                        ? const Color(0xFF2A2A2A) 
-                        : Colors.white,
-                    Theme.of(context).brightness == Brightness.dark 
-                        ? const Color(0xFF1F1F1F) 
-                        : const Color(0xFFFAFAFA),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorPair[0].withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: [
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 330, // 파이차트 전체 크기 더 키움
+          child: PieChart(
+            PieChartData(
+              sections: pieSections,
+              centerSpaceRadius: 60, // 도넛 느낌 유지, 외곽 원 더 큼
+              sectionsSpace: 2,
+              borderData: FlBorderData(show: false),
+              pieTouchData: PieTouchData(enabled: true),
+            ),
+          ),
+        ),
+        const SizedBox(height: 32), // 차트와 범례 간격 넉넉히
+        // 범례
+        Center(
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              for (int i = 0; i < sortedTypes.length; i++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: colorPair,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: colorPair[0].withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.error_outline, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                entry.key,
-                                style: AppTextStyles.body1.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).brightness == Brightness.dark 
-                                      ? Colors.white 
-                                      : const Color(0xFF1A1A1A),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${entry.value}건 (${percentage.toStringAsFixed(1)}%)',
-                                style: AppTextStyles.body2.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark 
-                                      ? Colors.grey[400] 
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: colorPair,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${entry.value}',
-                            style: AppTextStyles.body2.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                     Container(
-                      height: 8,
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark 
-                            ? Colors.grey[800] 
-                            : Colors.grey[200],
+                        color: pieColors[i],
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Stack(
-                        children: [
-                          Container(
-                            width: MediaQuery.of(context).size.width * 0.7 * normalizedValue,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: colorPair,
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorPair[0].withOpacity(0.3),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
+                    ),
+                    const SizedBox(width: 6),
+                    Builder(
+                      builder: (context) {
+                        final entry = sortedTypes[i];
+                        final percent = total > 0 ? (entry.value / total * 100) : 0;
+                        return Text(
+                          '${entry.key} (${entry.value}건, ${percent.toStringAsFixed(1)}%)',
+                          style: AppTextStyles.body2.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 기존 리스트(선택적, 필요시 주석 해제)
+        // ListView.builder 등 추가 가능
+      ],
     );
   }
 
