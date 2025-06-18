@@ -11,10 +11,10 @@ class SettingsScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
 
   const SettingsScreen({
-    Key? key,
+    super.key,
     required this.isDarkMode,
     required this.onThemeToggle,
-  }) : super(key: key);
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();

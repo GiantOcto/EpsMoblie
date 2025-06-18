@@ -5,6 +5,7 @@ class ErrorAlert {
   final DateTime timestamp;
   final String severity;
   final String site;
+  final bool isHidden;
 
   ErrorAlert({
     required this.id,
@@ -13,6 +14,7 @@ class ErrorAlert {
     required this.timestamp,
     required this.severity,
     required this.site,
+    required this.isHidden,
   });
 
   String get timeAgo {
@@ -31,6 +33,7 @@ class ErrorAlert {
       timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int, isUtc: true).toLocal(),
       severity: map['severity'] as String,
       site: map['site'] as String,
+      isHidden: map['isHidden'] == 1 || map['isHidden'] == true,
     );
   }
 
@@ -42,6 +45,7 @@ class ErrorAlert {
       'timestamp': timestamp.millisecondsSinceEpoch,
       'severity': severity,
       'site': site,
+      'isHidden': isHidden ? 1 : 0,
     };
   }
 } 

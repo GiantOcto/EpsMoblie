@@ -32,7 +32,7 @@ class ServerStatusCard extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             Row(
@@ -41,22 +41,22 @@ class ServerStatusCard extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: AppColors.successGradient,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.success.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.cloud_done,
                     color: Colors.white,
-                    size: 28,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +99,7 @@ class ServerStatusCard extends StatelessWidget {
                       Icon(
                         serverStatus.isHealthy ? Icons.check_circle : Icons.error,
                         color: Colors.white,
-                        size: 16,
+                        size: 20,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -114,7 +114,7 @@ class ServerStatusCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -159,15 +159,15 @@ class ServerStatusCard extends StatelessWidget {
     return Column(
       children: [
         Icon(icon, color: color, size: 20),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           value,
-          style: AppTextStyles.heading3.copyWith(
+          style: AppTextStyles.body1.copyWith(
             color: isDark ? Colors.white : const Color(0xFF1A1A1A),
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           label,
           style: AppTextStyles.caption.copyWith(

@@ -87,7 +87,8 @@ class MainActivity : FlutterActivity() {
                     "title" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TITLE)),
                     "timestamp" to it.getLong(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TIMESTAMP)),
                     "severity" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SEVERITY)),
-                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE))
+                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE)),
+                    "isHidden" to it.getInt(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_IS_HIDDEN))
                 )
                 errors.add(error)
             }
@@ -190,7 +191,8 @@ class MainActivity : FlutterActivity() {
                     "title" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TITLE)),
                     "timestamp" to it.getLong(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_TIMESTAMP)),
                     "severity" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SEVERITY)),
-                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE))
+                    "site" to it.getString(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_SITE)),
+                    "isHidden" to it.getInt(it.getColumnIndexOrThrow(ErrorDatabaseHelper.COLUMN_IS_HIDDEN))
                 )
                 errors.add(error)
             }
@@ -361,7 +363,7 @@ class BackgroundMonitoringService : Service() {
         runnable = object : Runnable {
             override fun run() {
                 generateErrorNotification()
-                handler?.postDelayed(this, 60000) // 1분(60초)마다 실행
+                handler?.postDelayed(this, 1800000) // 30분(1800초)마다 실행
             }
         }
         handler?.post(runnable!!)

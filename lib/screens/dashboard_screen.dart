@@ -23,10 +23,10 @@ class DashboardScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
 
   const DashboardScreen({
-    Key? key,
+    super.key,
     required this.isDarkMode,
     required this.onThemeToggle,
-  }) : super(key: key);
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -35,6 +35,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   Timer? _errorTimer;
   Timer? _statusTimer;
+  List<ErrorAlert> _allErrors = [];
   List<ErrorAlert> _errors = [];
   ServerStatus _serverStatus = ServerStatus(isHealthy: true, responseTime: 120, uptime: 99.9);
   final Random _random = Random();
@@ -92,22 +93,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   void _loadErrorsFromDatabase() async {
     try {
-      final result = await platform.invokeMethod('getErrorsFromDB');
+      final result = await platform.invokeMethod('getAllErrorsForStats');
       final List<dynamic> errorData = result as List<dynamic>;
-      
       final List<ErrorAlert> newErrors = errorData.map((data) {
         final Map<String, dynamic> errorMap = Map<String, dynamic>.from(data);
-        return ErrorAlert(
-          id: errorMap['id'] as int,
-          title: errorMap['title'] as String,
-          errorCode: errorMap['errorCode'] as String,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int, isUtc: true).toLocal(),
-          severity: errorMap['severity'] as String,
-          site: errorMap['site'] as String,  // 🔥 현장명 추가
-        );
+        return ErrorAlert.fromMap(errorMap);
       }).toList();
+      setState(() {
+        _allErrors = newErrors;
+        _errors = newErrors.where((e) => !e.isHidden && e.severity == "Error").take(20).toList();
+      });
       
-      // 🔥 새로운 에러 확인 및 UI 업데이트 로직 개선
       final oldCount = _errors.length;
       final newCount = newErrors.length;
 
@@ -126,10 +122,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
 
       if (hasChanges) {
-        setState(() {
-          _errors = newErrors;
-        });
-        
         print('📱 DB에서 ${newErrors.length}개 에러 로드됨 (이전: $oldCount개)');
         
         // 🔥 새 에러가 추가되었을 때만 사운드/진동
@@ -330,9 +322,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 10),
+            const SizedBox(height: 5),
             ServerStatusCard(serverStatus: _serverStatus),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Text(
@@ -352,7 +344,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                   ),
                   child: Text(
-                    '총 ${_errors.length}개',
+                    '총 ${_allErrors.where((e) => !e.isHidden && e.severity == "Error").length}개',
                     style: AppTextStyles.body2.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w600,
@@ -375,14 +367,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   void _hideError(int errorId) async {
     try {
-      // 🔥 데이터베이스에서 숨김 처리
       await platform.invokeMethod('hideError', {'errorId': errorId});
-      
-      // 🔥 UI에서 즉시 제거
       setState(() {
+        _allErrors = _allErrors.map((e) =>
+          e.id == errorId ? ErrorAlert(
+            id: e.id,
+            title: e.title,
+            errorCode: e.errorCode,
+            timestamp: e.timestamp,
+            severity: e.severity,
+            site: e.site,
+            isHidden: true,
+          ) : e
+        ).toList();
         _errors.removeWhere((error) => error.id == errorId);
       });
-      
       print('🙈 에러 숨김 처리 완료: ID=$errorId');
     } catch (e) {
       print('❌ 에러 숨김 실패: $e');
@@ -396,11 +395,11 @@ class RecentAlertsWidget extends StatelessWidget {
   final Function(int) onErrorHide;  // 🔥 에러 숨기기 콜백 추가
 
   const RecentAlertsWidget({
-    Key? key, 
+    super.key, 
     required this.errors,
     required this.listKey,
     required this.onErrorHide,  // 🔥 콜백 필수
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -468,13 +467,13 @@ class AlertListItem extends StatelessWidget {
   final String site;
 
   const AlertListItem({
-    Key? key,
+    super.key,
     required this.title,
     required this.time,
     required this.severity,
     required this.errorCode,
     required this.site,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -11,8 +11,7 @@ import '../themes/app_text_styles.dart';
 const platform = MethodChannel('background_service');
 
 class StatisticsScreen extends StatefulWidget {
-  const StatisticsScreen({Key? key}) : super(key: key);
-
+  const StatisticsScreen({super.key});
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
 }
@@ -57,6 +56,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             timestamp: DateTime.fromMillisecondsSinceEpoch(errorMap['timestamp'] as int, isUtc: true).toLocal(),
             severity: errorMap['severity'] as String,
             site: errorMap['site'] as String,
+            isHidden: errorMap['isHidden'] == 1 || errorMap['isHidden'] == true || errorMap['isHidden'] == 'true',
           );
         }).toList();
         _isLoading = false;

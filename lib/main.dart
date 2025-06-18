@@ -1,23 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
-import 'package:vibration/vibration.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 // 🔥 분리된 파일들 import
-import 'models/error_alert.dart';
-import 'models/server_status.dart';
 import 'services/app_settings.dart';
 import 'services/notification_service.dart';
 import 'themes/app_colors.dart';
 import 'themes/app_text_styles.dart';
-import 'widgets/server_status_card.dart';
 import 'screens/dashboard_screen.dart';
 
 // 🔥 백그라운드 서비스 채널
